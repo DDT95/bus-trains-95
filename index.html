@@ -293,7 +293,7 @@ body.realtime-mode #topbar .sub{color:var(--green);font-weight:700}
         </div>
       </div>
 
-      <div class="side-block">
+      <div class="side-block transport-mode-control">
         <p class="side-title">Mode de transport<span class="hint" id="mode-summary">—</span></p>
         <div id="mode-pills">
           <div class="mode-row"><span class="lbl"><span class="dot" style="background:var(--bus)"></span>Bus</span>
@@ -370,6 +370,7 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
   let speed = 15;
   let activeModes = new Set(['bus','train']);
   let selectedRoutes = new Set(); // vide = pas de filtre par ligne
+  let dataView = 'theoretical';
   let searchQuery = '';
   let dayTripsCache = null;
   let lastTick = performance.now();
@@ -484,6 +485,7 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
       const q = norm(filterText||'');
       let html = '';
       order.forEach(mode=>{
+        if(dataView === 'realtime' && mode !== 'train') return;
         const list = (byMode[mode]||[]).filter(r=>{
           if(!q) return true;
           return norm(r.short+' '+r.long+' '+r.agency).includes(q);
@@ -673,6 +675,10 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
   }
   function setDataView(view){
     const realtime = view === 'realtime';
+    dataView = view;
+    if(realtime){
+      selectedRoutes = new Set(Array.from(selectedRoutes).filter(idx=>DATA.routes[idx]?.mode === 'train'));
+    }
     document.body.classList.toggle('realtime-mode', realtime);
     $('#view-theoretical').classList.toggle('active', !realtime);
     $('#view-realtime').classList.toggle('active', realtime);
@@ -693,6 +699,10 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
       $('#realtime-loader').hidden=true;
     }
     playing = !realtime;
+    if(window.__renderLineList){
+      window.__renderLineList($('#line-search').value);
+      updateSelectedBar();
+    }
     if(!realtime) setTimeout(()=>map.invalidateSize(), 50);
   }
   function wireSheet(){

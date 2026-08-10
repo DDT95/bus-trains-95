@@ -41,6 +41,7 @@ body.realtime-mode #sidebar .transport-selector,
 body.realtime-mode #sidebar .sources-inline{display:block}
 body.realtime-mode #sidebar .sidebar-footer{display:flex}
 body.realtime-mode #sidebar .theoretical-time-control{display:none}
+body.realtime-mode #sidebar .transport-mode-control{display:none}
 .realtime-loader{position:absolute;inset:0;z-index:3;display:grid;place-items:center;background:#f4f7f8}
 .realtime-loader[hidden]{display:none}
 .realtime-loader-card{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:24px 30px;text-align:center;color:var(--navy);font-size:13px;font-weight:700}
