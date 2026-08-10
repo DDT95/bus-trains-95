@@ -220,7 +220,13 @@ body.present-mode #present-btn{background:var(--blue);color:#fff;border-color:va
 @media (max-width:420px){
   #topbar img.logo{display:none}
 }
-.data-view-switch{display:flex;align-items:center;gap:6px;padding:4px;border:1px solid var(--line);border-radius:12px;background:#f4f6fb}.data-view-switch span,.data-view-switch a{min-height:36px;display:flex;align-items:center;padding:0 12px;border-radius:9px;font-size:10px;font-weight:800;text-decoration:none}.data-view-switch span{background:var(--blue);color:#fff}.data-view-switch a{background:#fff;color:var(--blue);border:1px solid #dbe1ec}.data-view-switch small{display:block;max-width:150px;color:var(--muted);font-size:8px;line-height:1.25;margin-left:4px}.mode-row[data-hidden-mode]{display:none}
+.data-view-switch{display:flex;align-items:center;gap:6px;padding:4px;border:1px solid var(--line);border-radius:12px;background:#f4f6fb}.data-view-switch button{min-height:38px;display:flex;align-items:center;padding:0 15px;border-radius:9px;font-size:11px;font-weight:800;cursor:pointer;background:#fff;color:var(--blue);border:1px solid #dbe1ec}.data-view-switch button.active{background:var(--blue);color:#fff;border-color:var(--blue)}.mode-row[data-hidden-mode]{display:none}
+#realtime-view{display:none;flex:1;min-height:0;background:#fff}
+#realtime-frame{display:block;width:100%;height:100%;border:0;background:#fff}
+body.realtime-mode #kpis,body.realtime-mode #body-row{display:none}
+body.realtime-mode #realtime-view{display:block}
+body.realtime-mode #topbar .sub{color:var(--green);font-weight:700}
+@media (max-width:900px){.data-view-switch button{min-height:34px;padding:0 9px;font-size:9.5px}}
 </style>
 </head>
 <body>
@@ -234,9 +240,8 @@ body.present-mode #present-btn{background:var(--blue);color:#fff;border-color:va
       <div class="sub">Carte animée d'une semaine type · horaires théoriques Île-de-France Mobilités (GTFS)</div>
     </div>
     <div class="data-view-switch" aria-label="Type de donnée">
-      <span>Théorique</span>
-      <a href="https://piece-jointe-carto.developpement-durable.gouv.fr/DEPT095A/CARTOGRAPHIE/CARTE_STATIQUE/2026/26_07_4873/idf_TR/index_idf_tr_mobile.html" target="_blank" rel="noreferrer">Temps réel train ↗</a>
-      <small>Pas de flux bus temps réel homogène disponible</small>
+      <button id="view-theoretical" class="active" type="button">Horaires théoriques</button>
+      <button id="view-realtime" type="button">Trains en temps réel</button>
     </div>
   </header>
 
@@ -310,6 +315,9 @@ body.present-mode #present-btn{background:var(--blue);color:#fff;border-color:va
       <div id="map"></div>
     </div>
   </div>
+  <div id="realtime-view" aria-hidden="true">
+    <iframe id="realtime-frame" title="Circulation des trains en temps réel" loading="lazy"></iframe>
+  </div>
 </div>
 
 <div id="loading">
@@ -328,6 +336,7 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
   const MODE_COLOR = {bus:'#000091', train:'#8b3ea8', tram:'#18753c', metro:'#b8752a'};
   const MODE_LABEL = {bus:'Bus', train:'Train / RER', tram:'Tramway', metro:'Métro'};
   const DAY_NAMES = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
+  const REALTIME_URL = 'https://piece-jointe-carto.developpement-durable.gouv.fr/DEPT095A/CARTOGRAPHIE/CARTE_STATIQUE/2026/26_07_4873/idf_TR/index_idf_tr_mobile.html';
   const collator = new Intl.Collator('fr', {numeric:true, sensitivity:'base'});
 
   let DATA = null;
@@ -404,6 +413,13 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
       attribution:'&copy; OpenStreetMap, &copy; CARTO', maxZoom:19, subdomains:'abcd'
     }).addTo(map);
     canvasRenderer = L.canvas({padding:0.5});
+    fetch('departement95.geojson').then(r=>r.json()).then(boundary=>{
+      const outline = L.geoJSON(boundary, {
+        style:{color:'#000091',weight:4,opacity:1,fillColor:'#000091',fillOpacity:0.025},
+        interactive:false
+      }).addTo(map);
+      outline.bringToFront();
+    }).catch(err=>console.warn('Contour du Val-d\'Oise indisponible', err));
     map.on('zoomend', updateLabelClasses);
     updateLabelClasses();
   }
@@ -590,6 +606,8 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
   }
 
   function wireControls(){
+    $('#view-theoretical').addEventListener('click', ()=>setDataView('theoretical'));
+    $('#view-realtime').addEventListener('click', ()=>setDataView('realtime'));
     $('#play-btn').addEventListener('click', togglePlay);
     $('#time-slider').addEventListener('input', e=>{ simTime=+e.target.value; syncTimeUI(); });
     $('#time-input').addEventListener('change', e=>{
@@ -621,6 +639,19 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
       }
     });
     syncTimeUI();
+  }
+  function setDataView(view){
+    const realtime = view === 'realtime';
+    document.body.classList.toggle('realtime-mode', realtime);
+    $('#view-theoretical').classList.toggle('active', !realtime);
+    $('#view-realtime').classList.toggle('active', realtime);
+    $('#realtime-view').setAttribute('aria-hidden', String(!realtime));
+    $('#topbar .sub').textContent = realtime
+      ? 'Positions ferroviaires disponibles en direct · bus en horaires théoriques uniquement'
+      : "Carte animée d'une semaine type · horaires théoriques Île-de-France Mobilités (GTFS)";
+    if(realtime && !$('#realtime-frame').src) $('#realtime-frame').src = REALTIME_URL;
+    playing = !realtime;
+    if(!realtime) setTimeout(()=>map.invalidateSize(), 50);
   }
   function wireSheet(){
     const sheet = $('#sidebar'), handle = $('#sheet-handle');
