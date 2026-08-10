@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#000091" />
+  <title>Bus et trains · Val-d’Oise</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <img src="prefet-val-doise.png" alt="Préfet du Val-d’Oise" />
+    <div><span>MOBILITÉS · VAL-D’OISE</span><h1>Bus et trains</h1><p>Horaires théoriques et circulation en temps réel</p></div>
+    <a href="https://ddt95.github.io/atlas-territorial-95/">← Retour à l’Atlas</a>
+  </header>
+  <main>
+    <nav class="selector" aria-label="Choix de la carte">
+      <div class="selector-group"><span>Réseau</span><button class="active" data-network="bus" aria-pressed="true">Bus</button><button data-network="train" aria-pressed="false">Train · RER</button></div>
+      <div class="selector-group"><span>Donnée</span><button class="active" data-mode="theoretical" aria-pressed="true">Théorique</button><button data-mode="realtime" aria-pressed="false" disabled>Temps réel</button></div>
+      <p id="status">Bus · horaires théoriques GTFS</p>
+    </nav>
+    <section class="viewer">
+      <div class="viewer-head"><div><i></i><strong id="viewer-title">Bus — semaine type</strong><small id="viewer-source">Île-de-France Mobilités · GTFS</small></div><a id="open-view" target="_blank" rel="noreferrer">Ouvrir en plein écran ↗</a></div>
+      <iframe id="map-frame" title="Carte des transports" allow="fullscreen" referrerpolicy="no-referrer"></iframe>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
