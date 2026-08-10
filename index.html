@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://unpkg.com" />
 <link rel="preconnect" href="https://a.basemaps.cartocdn.com" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<link rel="stylesheet" href="css/atlas-standard.css" />
+<link rel="stylesheet" href="css/transport-atlas.css" />
 <style>
 :root{
   --blue:#000091;
@@ -231,21 +233,18 @@ body.realtime-mode #topbar .sub{color:var(--green);font-weight:700}
 </head>
 <body>
 <div id="app">
-  <header id="topbar">
+  <header id="topbar" class="topbar">
     <button id="sidebar-toggle">☰ Filtres</button>
-    <img class="logo" id="logo-img" alt="Préfet du Val-d'Oise" />
-    <div class="titles">
-      <div class="eyebrow">Mobilités · DDT du Val-d'Oise</div>
+    <a class="brand-logo-link" href="https://ddt95.github.io/atlas-territorial-95/" target="_blank" rel="noopener"><img class="logo brand-logo" id="logo-img" alt="Préfet du Val-d'Oise" /></a>
+    <div class="titles title-block">
+      <div class="eyebrow">MOBILITÉS · BUS &amp; TRAINS · VAL-D'OISE</div>
       <h1>Comment circulent les bus et les trains ?</h1>
       <div class="sub">Carte animée d'une semaine type · horaires théoriques Île-de-France Mobilités (GTFS)</div>
     </div>
-    <div class="data-view-switch" aria-label="Type de donnée">
-      <button id="view-theoretical" class="active" type="button">Horaires théoriques</button>
-      <button id="view-realtime" type="button">Trains en temps réel</button>
-    </div>
+    <button id="openSourcesTop" class="livebox" type="button"><span class="fresh-dot"></span><span><strong>Sources &amp; méthode</strong><small>Comprendre les données affichées</small></span></button>
   </header>
 
-  <div id="kpis">
+  <div id="kpis" hidden>
     <div class="kpi c-blue"><div class="v" id="kpi-lignes">322</div><div class="l">Lignes suivies</div></div>
     <div class="kpi c-cyan"><div class="v" id="kpi-total">0</div><div class="l">Véhicules en circulation</div></div>
     <div class="kpi c-bus"><div class="v" id="kpi-bus">0</div><div class="l">Bus</div></div>
@@ -253,9 +252,18 @@ body.realtime-mode #topbar .sub{color:var(--green);font-weight:700}
     <div class="kpi c-slate"><div class="v" id="kpi-jour">Lundi</div><div class="l">Jour affiché</div></div>
   </div>
 
-  <div id="body-row">
-    <aside id="sidebar">
+  <div id="body-row" class="workspace">
+    <aside id="sidebar" class="sidebar">
       <div id="sheet-handle"><span class="bar"></span><div class="sheet-title">Filtres &amp; contrôles</div></div>
+      <div class="sidebar-intro"><div><span class="eyebrow">LECTURE CARTOGRAPHIQUE</span><h2>Explorer les circulations</h2><p>Choisis un réseau, puis compare l’offre programmée aux positions ferroviaires disponibles en direct.</p></div></div>
+      <section class="transport-selector" aria-label="Type de donnée">
+        <span>TYPE DE DONNÉE</span>
+        <div class="data-view-switch">
+          <button id="view-theoretical" class="active" type="button">Horaires théoriques</button>
+          <button id="view-realtime" type="button">Trains en temps réel</button>
+        </div>
+        <p id="view-explanation">Animation d’une semaine type GTFS.</p>
+      </section>
       <div class="side-block">
         <p class="side-title">Jour de la semaine</p>
         <div id="day-tabs"></div>
@@ -308,17 +316,32 @@ body.realtime-mode #topbar .sub{color:var(--green);font-weight:700}
       </div>
 
       <button id="reset-btn">Réinitialiser tous les filtres</button>
+      <button id="openComprendre3" class="sources-inline">Sources, millésimes et limites</button>
+      <div class="sidebar-footer"><div class="fresh-dot"></div><div><strong>Données publiques tracées</strong><small>Île-de-France Mobilités · GTFS</small></div></div>
     </aside>
 
-    <div id="map-wrap">
-      <button id="present-btn" title="Raccourci : touche P">⛶ Mode présentation</button>
+    <div id="map-wrap" class="map-shell">
+      <button id="present-btn" hidden>Mode présentation</button>
       <div id="map"></div>
+      <div class="map-note"><span class="fresh-dot"></span><span id="mapStatus">Horaires théoriques · semaine type</span></div>
     </div>
   </div>
-  <div id="realtime-view" aria-hidden="true">
+  <div id="realtime-view" class="map-shell" aria-hidden="true">
+    <div id="realtime-loader" class="realtime-loader"><div class="realtime-loader-card"><div class="spin"></div>Chargement des positions ferroviaires en direct…</div></div>
     <iframe id="realtime-frame" title="Circulation des trains en temps réel" loading="lazy"></iframe>
   </div>
 </div>
+
+<dialog id="comprendreDialog" class="dialog">
+  <button class="dialog-close" data-close="comprendreDialog" aria-label="Fermer">×</button>
+  <div class="dialog-header"><span class="eyebrow">TRAÇABILITÉ</span><h2>Comprendre la carte</h2><p>Sources et limites des horaires théoriques et des positions ferroviaires en temps réel.</p></div>
+  <div class="dialog-body">
+    <h3>Horaires théoriques</h3><p>Les véhicules sont animés à partir des horaires GTFS d’une semaine type publiés par Île-de-France Mobilités. Ils représentent une offre programmée, pas une position observée.</p>
+    <h3>Temps réel</h3><p>Le mode temps réel affiche uniquement la circulation ferroviaire disponible en direct. Il n’existe pas ici de flux homogène de positions en temps réel pour les bus.</p>
+    <h3>Limites</h3><ul><li>Un horaire théorique ne prouve pas qu’un véhicule circule effectivement.</li><li>La disponibilité du temps réel dépend du service source.</li><li>Le contour bleu matérialise le Val-d’Oise ; les lignes de correspondance peuvent le dépasser.</li></ul>
+    <div class="source-cards"><div class="source-card"><h3>Île-de-France Mobilités</h3><p>Horaires et référentiels GTFS.</p><a href="https://prim.iledefrance-mobilites.fr/" target="_blank" rel="noopener">Voir la source ↗</a></div><div class="source-card"><h3>Code source</h3><p>Code et préparation des données.</p><a href="https://github.com/DDT95/bus-trains-95" target="_blank" rel="noopener">Voir le dépôt ↗</a></div></div>
+  </div>
+</dialog>
 
 <div id="loading">
   <div class="spin"></div>
@@ -608,6 +631,11 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
   function wireControls(){
     $('#view-theoretical').addEventListener('click', ()=>setDataView('theoretical'));
     $('#view-realtime').addEventListener('click', ()=>setDataView('realtime'));
+    $('#openSourcesTop').addEventListener('click', ()=>$('#comprendreDialog').showModal());
+    $('#openComprendre3').addEventListener('click', ()=>$('#comprendreDialog').showModal());
+    $$('#comprendreDialog [data-close]').forEach(btn=>btn.addEventListener('click', ()=>$('#comprendreDialog').close()));
+    $('#comprendreDialog').addEventListener('click', e=>{ if(e.target===$('#comprendreDialog')) $('#comprendreDialog').close(); });
+    $('#realtime-frame').addEventListener('load', ()=>$('#realtime-loader').hidden=true);
     $('#play-btn').addEventListener('click', togglePlay);
     $('#time-slider').addEventListener('input', e=>{ simTime=+e.target.value; syncTimeUI(); });
     $('#time-input').addEventListener('change', e=>{
@@ -649,7 +677,11 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
     $('#topbar .sub').textContent = realtime
       ? 'Positions ferroviaires disponibles en direct · bus en horaires théoriques uniquement'
       : "Carte animée d'une semaine type · horaires théoriques Île-de-France Mobilités (GTFS)";
-    if(realtime && !$('#realtime-frame').src) $('#realtime-frame').src = REALTIME_URL;
+    $('#view-explanation').textContent = realtime
+      ? 'Positions ferroviaires observées en direct. Aucun flux bus temps réel homogène n’est disponible.'
+      : 'Animation d’une semaine type à partir des horaires GTFS.';
+    $('#mapStatus').textContent = realtime ? 'Trains · positions en direct' : 'Horaires théoriques · semaine type';
+    if(realtime && !$('#realtime-frame').src){ $('#realtime-loader').hidden=false; $('#realtime-frame').src = REALTIME_URL; }
     playing = !realtime;
     if(!realtime) setTimeout(()=>map.invalidateSize(), 50);
   }
