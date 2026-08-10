@@ -1,63 +1,696 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#000091" />
-  <meta name="description" content="Bus et trains dans le Val-d’Oise — offre théorique et temps réel ferroviaire" />
-  <title>Bus et trains · Val-d’Oise · DDT 95</title>
-  <link rel="stylesheet" href="./styles.css" />
-  <script type="module" src="./app.js"></script>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Réseau de transport en commun — Val-d'Oise</title>
+<link rel="preconnect" href="https://unpkg.com" />
+<link rel="preconnect" href="https://a.basemaps.cartocdn.com" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<style>
+:root{
+  --blue:#000091;
+  --blue-deep:#070047;
+  --blue-soft:#f3f6ff;
+  --cyan:#4fd1ff;
+  --green:#18753c;
+  --orange:#b8752a;
+  --red:#c65f52;
+  --ink:#111827;
+  --slate:#475569;
+  --muted:#667085;
+  --line:#d7deea;
+  --bg:#edf2f8;
+  --card:#ffffff;
+  --shadow:0 24px 65px rgba(15,23,42,.14);
+  --shadow-soft:0 12px 38px rgba(15,23,42,.10);
+  --radius:18px;
+  --side:380px;
+  --bus:#000091;
+  --train:#8b3ea8;
+  --tram:#18753c;
+  --metro:#b8752a;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:Marianne,Inter,"Segoe UI",system-ui,-apple-system,BlinkMacSystemFont,Arial,sans-serif;color:var(--ink);
+  background:var(--bg);overflow:hidden}
+button,input,select{font:inherit}
+
+#app{height:100%;display:flex;flex-direction:column}
+#present-btn{position:absolute;top:14px;right:14px;z-index:80;background:rgba(255,255,255,.92);
+  border:1.5px solid var(--line);border-radius:10px;padding:8px 13px;font-size:12px;font-weight:700;
+  color:var(--slate);cursor:pointer;box-shadow:var(--shadow-soft);backdrop-filter:blur(6px)}
+#present-btn:hover{border-color:var(--blue);color:var(--blue)}
+body.present-mode #topbar,
+body.present-mode #kpis,
+body.present-mode #sidebar{display:none!important}
+body.present-mode #present-btn{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+/* ---------- Header (calque carte eau) ---------- */
+#topbar{
+  flex:none;background:#fff;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:18px;padding:14px 24px;box-shadow:var(--shadow-soft);z-index:60
+}
+#topbar img.logo{height:52px;flex:none}
+#topbar .titles{flex:1;min-width:0}
+#topbar .eyebrow{font-size:11px;font-weight:800;letter-spacing:.6px;color:var(--blue);text-transform:uppercase}
+#topbar h1{font-size:22px;margin:2px 0 2px;font-weight:800;color:var(--ink)}
+#topbar .sub{font-size:12.5px;color:var(--muted)}
+#status-pill{
+  flex:none;text-align:right;background:var(--blue-soft);border-radius:14px;padding:10px 16px;
+  border:1px solid #dfe6fb
+}
+#status-pill .row{display:flex;align-items:center;gap:6px;justify-content:flex-end;font-size:12.5px;font-weight:700;color:var(--green)}
+#status-pill .row .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+#status-pill .src{font-size:10.5px;color:var(--muted);margin-top:2px}
+
+/* ---------- KPI row ---------- */
+#kpis{flex:none;display:grid;grid-template-columns:repeat(5,1fr);gap:12px;padding:14px 24px;background:#fff;border-bottom:1px solid var(--line)}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
+.kpi.c-blue::before{background:var(--blue)}
+.kpi.c-bus::before{background:var(--bus)}
+.kpi.c-train::before{background:var(--train)}
+.kpi.c-slate::before{background:var(--slate)}
+.kpi.c-cyan::before{background:var(--cyan)}
+.kpi .v{font-size:24px;font-weight:800;color:var(--ink);line-height:1.1}
+.kpi .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700;margin-top:4px}
+
+/* ---------- Layout ---------- */
+#body-row{flex:1;display:flex;min-height:0}
+#sidebar{
+  width:var(--side);flex:none;background:#fff;border-right:1px solid var(--line);
+  overflow-y:auto;padding:18px 18px 30px
+}
+#map-wrap{flex:1;position:relative;min-width:0}
+#map{height:100%;width:100%;background:#e9eef6}
+
+.side-block{margin-bottom:22px}
+.side-title{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);
+  font-weight:800;margin:0 0 10px}
+.side-title .hint{display:block;font-weight:600;text-transform:none;font-size:12px;color:var(--slate);
+  letter-spacing:0;margin-top:4px}
+
+/* day tabs */
+#day-tabs{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.day-tab{padding:9px 0;text-align:center;border-radius:10px;border:1.5px solid var(--line);
+  background:#fff;font-size:12px;font-weight:700;color:var(--slate);cursor:pointer;transition:.15s}
+.day-tab:hover{border-color:var(--blue);color:var(--blue)}
+.day-tab.active{background:var(--blue);border-color:var(--blue);color:#fff}
+
+/* time card */
+#time-card{background:var(--blue-soft);border:1px solid #dfe6fb;border-radius:16px;padding:16px}
+#time-top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+#play-btn{width:38px;height:38px;border-radius:50%;border:none;background:var(--blue);color:#fff;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;font-size:15px}
+#time-input{border:1.5px solid var(--line);border-radius:10px;padding:7px 10px;font-size:20px;font-weight:800;
+  color:var(--ink);background:#fff;width:112px;text-align:center}
+#speed-select{border:1.5px solid var(--line);border-radius:10px;padding:8px 6px;font-size:11.5px;font-weight:700;
+  background:#fff;color:var(--slate);margin-left:auto;flex:none;width:118px}
+#time-top{flex-wrap:wrap}
+#time-slider{width:100%;accent-color:var(--blue);margin:4px 0 2px}
+#time-ticks{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);padding:0 2px}
+#time-presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.preset-btn{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:6px 11px;font-size:11.5px;
+  font-weight:700;color:var(--slate);cursor:pointer;transition:.15s}
+.preset-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-soft)}
+
+/* mode pills (calque carte eau) */
+#mode-pills{display:flex;flex-direction:column;gap:2px}
+.mode-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 4px;
+  border-bottom:1px solid #f1f4f9}
+.mode-row:last-child{border-bottom:none}
+.mode-row .lbl{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:700;color:var(--ink)}
+.mode-row .dot{width:10px;height:10px;border-radius:50%;flex:none}
+.switch{position:relative;display:inline-block;width:44px;height:26px;flex:none}
+.switch input{opacity:0;width:0;height:0;position:absolute}
+.switch .slider{position:absolute;inset:0;background:#d7deea;border-radius:999px;cursor:pointer;transition:.2s}
+.switch .slider:before{content:'';position:absolute;height:20px;width:20px;left:3px;top:3px;background:#fff;
+  border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.switch input:checked + .slider:before{transform:translateX(18px)}
+.switch[data-mode="bus"] input:checked + .slider{background:var(--bus)}
+.switch[data-mode="train"] input:checked + .slider{background:var(--train)}
+.switch[data-mode="tram"] input:checked + .slider{background:var(--tram)}
+.switch[data-mode="metro"] input:checked + .slider{background:var(--metro)}
+
+/* line picker guidé */
+#line-search{width:100%;padding:10px 12px;border-radius:12px;border:1.5px solid var(--line);
+  font-size:13px;background:#fff;margin-bottom:10px}
+#line-search:focus{outline:none;border-color:var(--blue)}
+#line-selected-bar{display:none;align-items:center;justify-content:space-between;background:var(--blue-soft);
+  border:1px solid #dfe6fb;border-radius:10px;padding:8px 10px;margin-bottom:8px;font-size:12px;font-weight:700;color:var(--blue)}
+#line-selected-bar button{border:none;background:none;color:var(--blue);font-weight:800;cursor:pointer;font-size:12px}
+#line-list{max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:12px}
+.line-group-h{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);
+  padding:8px 12px 4px;background:#fafbfe;position:sticky;top:0}
+.line-row{display:flex;align-items:center;gap:9px;padding:8px 12px;cursor:pointer;border-top:1px solid #f1f4f9;transition:.1s}
+.line-row:hover{background:#f6f8ff}
+.line-row.selected{background:var(--blue-soft)}
+.line-row .badge{min-width:30px;height:22px;border-radius:6px;color:#fff;font-size:11px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;padding:0 6px;flex:none}
+.line-row .txt{min-width:0;flex:1}
+.line-row .txt .n{font-size:12.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.line-row .txt .a{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.line-row .check{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line);flex:none}
+.line-row.selected .check{background:var(--blue);border-color:var(--blue)}
+
+/* reset */
+#reset-btn{width:100%;padding:11px;border-radius:12px;border:1.5px solid var(--line);background:#fff;
+  font-size:12.5px;font-weight:700;color:var(--slate);cursor:pointer}
+#reset-btn:hover{border-color:var(--blue);color:var(--blue)}
+
+/* vehicle labels on map */
+.veh-label{background:rgba(255,255,255,.95);border-radius:6px;padding:1px 6px;font-size:10.5px;font-weight:800;
+  box-shadow:0 2px 6px rgba(15,23,42,.18);border:none!important;color:var(--ink)}
+.veh-label.bus{display:none}
+.veh-label.train,.veh-label.tram,.veh-label.metro{display:none}
+.leaflet-container.show-major-labels .veh-label.train,
+.leaflet-container.show-major-labels .veh-label.tram,
+.leaflet-container.show-major-labels .veh-label.metro{display:block}
+.leaflet-container.show-bus-labels .veh-label.bus{display:block}
+
+/* loading */
+#loading{position:absolute;inset:0;background:var(--bg);z-index:100;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:14px}
+#loading .spin{width:40px;height:40px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--blue);
+  animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading .txt{font-size:13px;color:var(--muted);font-weight:600}
+#loading .bar{width:240px;height:6px;background:var(--line);border-radius:4px;overflow:hidden}
+#loading .bar i{display:block;height:100%;width:0%;background:var(--blue);transition:width .2s}
+
+.leaflet-popup-content-wrapper{border-radius:14px;box-shadow:var(--shadow)}
+.veh-pop{min-width:200px}
+.veh-pop .line-badge{display:inline-block;padding:3px 10px;border-radius:8px;color:#fff;font-weight:800;
+  font-size:13px;margin-bottom:6px}
+.veh-pop .dest{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px}
+.veh-pop .meta{font-size:11px;color:var(--muted);line-height:1.6}
+
+#sidebar-toggle{display:none}
+#sheet-handle{display:none}
+@media (max-width:900px){
+  #sidebar-toggle{display:none!important}
+  #body-row{position:relative}
+  #sidebar{
+    position:fixed;left:0;right:0;bottom:0;top:auto;width:100%;height:86vh;max-height:86vh;
+    background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -14px 44px rgba(15,23,42,.28);
+    z-index:85;padding:0 18px 24px;overflow-y:hidden;
+    transform:translateY(calc(100% - 158px));
+    transition:transform .3s cubic-bezier(.22,.85,.3,1);
+  }
+  #sidebar.expanded{transform:translateY(0);overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #sidebar.dragging{transition:none}
+  #sheet-handle{display:block;position:sticky;top:0;background:#fff;padding:10px 18px 6px;margin:0 -18px 10px;
+    cursor:grab;touch-action:none;z-index:2}
+  #sheet-handle .bar{display:block;width:44px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 10px}
+  #sheet-handle .sheet-title{font-size:13px;font-weight:800;color:var(--ink);text-align:center}
+  #topbar{padding:10px 14px;gap:10px}
+  #topbar img.logo{height:34px}
+  #topbar .eyebrow{font-size:9.5px}
+  #topbar h1{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:1px 0}
+  #topbar .sub{display:none}
+  #status-pill{display:none}
+  #kpis{padding:10px 14px;gap:8px;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:132px;
+    overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .kpi{padding:9px 10px}
+  .kpi .v{font-size:19px}
+  .kpi .l{font-size:9px}
+}
+@media (max-width:420px){
+  #topbar img.logo{display:none}
+}
+.data-view-switch{display:flex;align-items:center;gap:6px;padding:4px;border:1px solid var(--line);border-radius:12px;background:#f4f6fb}.data-view-switch span,.data-view-switch a{min-height:36px;display:flex;align-items:center;padding:0 12px;border-radius:9px;font-size:10px;font-weight:800;text-decoration:none}.data-view-switch span{background:var(--blue);color:#fff}.data-view-switch a{background:#fff;color:var(--blue);border:1px solid #dbe1ec}.data-view-switch small{display:block;max-width:150px;color:var(--muted);font-size:8px;line-height:1.25;margin-left:4px}.mode-row[data-hidden-mode]{display:none}
+</style>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand-logo-link" href="https://ddt95.github.io/atlas-territorial-95/" aria-label="Retour à l’Atlas territorial"><img class="brand-logo" src="./prefet-val-doise.png" alt="Préfet du Val-d’Oise" /></a>
-    <div class="title-block"><span class="eyebrow">MOBILITÉS · BUS & TRAINS · VAL-D’OISE</span><h1>Comment circulent les bus et les trains ?</h1><p>Offre théorique d’une semaine type et circulation ferroviaire en temps réel</p></div>
-    <button id="mobileLayers" class="mobile-layers" aria-controls="layerSidebar" aria-expanded="false">Données</button>
-    <button id="openMethodTop" class="livebox"><span class="fresh-dot"></span><div><strong>Sources & méthode</strong><small>Comprendre les données affichées</small></div></button>
+<div id="app">
+  <header id="topbar">
+    <button id="sidebar-toggle">☰ Filtres</button>
+    <img class="logo" id="logo-img" alt="Préfet du Val-d'Oise" />
+    <div class="titles">
+      <div class="eyebrow">Mobilités · DDT du Val-d'Oise</div>
+      <h1>Comment circulent les bus et les trains ?</h1>
+      <div class="sub">Carte animée d'une semaine type · horaires théoriques Île-de-France Mobilités (GTFS)</div>
+    </div>
+    <div class="data-view-switch" aria-label="Type de donnée">
+      <span>Théorique</span>
+      <a href="https://piece-jointe-carto.developpement-durable.gouv.fr/DEPT095A/CARTOGRAPHIE/CARTE_STATIQUE/2026/26_07_4873/idf_TR/index_idf_tr_mobile.html" target="_blank" rel="noreferrer">Temps réel train ↗</a>
+      <small>Pas de flux bus temps réel homogène disponible</small>
+    </div>
   </header>
 
-  <main class="workspace">
-    <aside id="layerSidebar" class="sidebar" aria-label="Choix du réseau et du type de donnée">
-      <div class="sidebar-intro"><div><span class="eyebrow">LECTURE CARTOGRAPHIQUE</span><h2>Explorer les circulations</h2><p>Choisissez un réseau, puis comparez l’offre programmée aux positions disponibles en direct.</p></div></div>
+  <div id="kpis">
+    <div class="kpi c-blue"><div class="v" id="kpi-lignes">322</div><div class="l">Lignes suivies</div></div>
+    <div class="kpi c-cyan"><div class="v" id="kpi-total">0</div><div class="l">Véhicules en circulation</div></div>
+    <div class="kpi c-bus"><div class="v" id="kpi-bus">0</div><div class="l">Bus</div></div>
+    <div class="kpi c-train"><div class="v" id="kpi-train">0</div><div class="l">Trains &amp; RER</div></div>
+    <div class="kpi c-slate"><div class="v" id="kpi-jour">Lundi</div><div class="l">Jour affiché</div></div>
+  </div>
 
-      <section class="control-section" aria-labelledby="network-label">
-        <span id="network-label">RÉSEAU</span>
-        <div class="choice-cards">
-          <button class="choice-card active" data-network="bus" aria-pressed="true"><i class="mode-switch"></i><span><b>Bus</b><small>Lignes du Val-d’Oise et connexions</small></span><em class="mode-color bus"></em></button>
-          <button class="choice-card" data-network="train" aria-pressed="false"><i class="mode-switch"></i><span><b>Train · RER</b><small>RER, Transilien et TER</small></span><em class="mode-color train"></em></button>
+  <div id="body-row">
+    <aside id="sidebar">
+      <div id="sheet-handle"><span class="bar"></span><div class="sheet-title">Filtres &amp; contrôles</div></div>
+      <div class="side-block">
+        <p class="side-title">Jour de la semaine</p>
+        <div id="day-tabs"></div>
+      </div>
+
+      <div class="side-block">
+        <p class="side-title">Heure affichée</p>
+        <div id="time-card">
+          <div id="time-top">
+            <button id="play-btn">⏸</button>
+            <input type="time" id="time-input" value="08:00" />
+            <select id="speed-select">
+              <option value="1">Temps réel</option>
+              <option value="15" selected>Standard</option>
+              <option value="45">Rapide</option>
+              <option value="120">Très rapide</option>
+            </select>
+          </div>
+          <input type="range" id="time-slider" min="0" max="86400" step="30" value="28800" />
+          <div id="time-ticks"><span>00h</span><span>03h</span><span>06h</span><span>09h</span><span>12h</span><span>15h</span><span>18h</span><span>21h</span><span>24h</span></div>
+          <div id="time-presets">
+            <button class="preset-btn" data-t="1800">🌙 Nuit</button>
+            <button class="preset-btn" data-t="27000">🌅 Pointe matin</button>
+            <button class="preset-btn" data-t="43200">☀️ Journée</button>
+            <button class="preset-btn" data-t="64800">🌇 Pointe soir</button>
+            <button class="preset-btn" data-t="75600">🌃 Soirée</button>
+          </div>
         </div>
-      </section>
+      </div>
 
-      <section class="control-section" aria-labelledby="data-label">
-        <span id="data-label">TYPE DE DONNÉE</span>
-        <div class="choice-cards">
-          <button class="choice-card active" data-mode="theoretical" aria-pressed="true"><i class="mode-switch"></i><span><b>Offre théorique</b><small>Animation d’une semaine type GTFS</small></span><em class="mode-color theoretical"></em></button>
-          <button class="choice-card" data-mode="realtime" aria-pressed="false" disabled><i class="mode-switch"></i><span><b>Temps réel</b><small>Positions en direct · réseau ferré</small></span><em class="mode-color realtime"></em></button>
+      <div class="side-block">
+        <p class="side-title">Mode de transport<span class="hint" id="mode-summary">—</span></p>
+        <div id="mode-pills">
+          <div class="mode-row"><span class="lbl"><span class="dot" style="background:var(--bus)"></span>Bus</span>
+            <label class="switch" data-mode="bus"><input type="checkbox" checked><span class="slider"></span></label></div>
+          <div class="mode-row"><span class="lbl"><span class="dot" style="background:var(--train)"></span>Trains / RER</span>
+            <label class="switch" data-mode="train"><input type="checkbox" checked><span class="slider"></span></label></div>
+          <div class="mode-row" data-hidden-mode><span class="lbl"><span class="dot" style="background:var(--tram)"></span>Tram</span>
+            <label class="switch" data-mode="tram"><input type="checkbox" checked><span class="slider"></span></label></div>
+          <div class="mode-row" data-hidden-mode><span class="lbl"><span class="dot" style="background:var(--metro)"></span>Métro</span>
+            <label class="switch" data-mode="metro"><input type="checkbox" checked><span class="slider"></span></label></div>
         </div>
-      </section>
+      </div>
 
-      <div class="sidebar-hint"><strong id="status-title">Bus · offre théorique</strong><span id="status">Les véhicules sont animés à partir des horaires programmés d’une semaine type.</span></div>
-      <button id="openMethod" class="sources-inline">Sources, millésimes et limites</button>
-      <div class="sidebar-footer"><span class="fresh-dot"></span><div><strong id="footer-state">GTFS Île-de-France Mobilités</strong><small id="footer-detail">Horaires théoriques · semaine type</small></div></div>
+      <div class="side-block">
+        <p class="side-title">Choisir une ligne</p>
+        <input type="text" id="line-search" placeholder="Rechercher : RER C, ligne H, 95-11…" />
+        <div id="line-selected-bar"><span id="line-selected-txt"></span><button id="line-clear">Effacer</button></div>
+        <div id="line-list"></div>
+      </div>
+
+      <button id="reset-btn">Réinitialiser tous les filtres</button>
     </aside>
 
-    <section class="map-shell" aria-label="Carte interactive des bus et des trains">
-      <iframe id="map-frame" title="Carte des transports" allow="fullscreen" referrerpolicy="no-referrer"></iframe>
-      <div class="map-legend"><strong id="viewer-title">Bus — semaine type</strong><span id="viewer-source">Île-de-France Mobilités · GTFS</span><a id="open-view" target="_blank" rel="noreferrer">Ouvrir en plein écran ↗</a></div>
-      <div class="map-note"><span class="pulse"></span><span id="map-status">Carte théorique · utilisez la chronologie pour parcourir la journée</span></div>
-    </section>
-  </main>
-
-  <dialog id="methodDialog" class="dialog">
-    <button class="dialog-close" aria-label="Fermer">×</button>
-    <div class="dialog-header"><span class="eyebrow">TRAÇABILITÉ</span><h2>Comprendre la carte</h2><p>Ce que montrent les cartes, leur fraîcheur et leurs limites.</p></div>
-    <div class="dialog-body">
-      <h3>Offre théorique</h3><p>Les positions animées des bus et des trains sont reconstituées à partir des horaires GTFS d’Île-de-France Mobilités. Elles représentent une semaine type et non la position observée d’un véhicule.</p>
-      <h3>Temps réel ferroviaire</h3><p>La vue en direct restitue les positions ferroviaires publiées par Île-de-France Mobilités. La disponibilité et la fraîcheur dépendent du flux source.</p>
-      <h3>Pourquoi pas de temps réel bus ?</h3><p>Aucun flux de positions bus suffisamment fiable et homogène n’est disponible dans les sources actuellement intégrées. Le bouton reste donc désactivé plutôt que de présenter une simulation comme du temps réel.</p>
-      <div class="source-cards"><div class="source-card"><h3>Données théoriques</h3><p>GTFS Île-de-France Mobilités · horaires, lignes et parcours.</p><a href="https://prim.iledefrance-mobilites.fr/" target="_blank" rel="noreferrer">Voir PRIM ↗</a></div><div class="source-card"><h3>Code source</h3><p>Page autonome et méthode d’intégration disponibles sur GitHub.</p><a href="https://github.com/DDT95/bus-trains-95" target="_blank" rel="noreferrer">Voir le dépôt ↗</a></div></div>
+    <div id="map-wrap">
+      <button id="present-btn" title="Raccourci : touche P">⛶ Mode présentation</button>
+      <div id="map"></div>
     </div>
-  </dialog>
+  </div>
+</div>
+
+<div id="loading">
+  <div class="spin"></div>
+  <div class="txt" id="loading-txt">Chargement du réseau…</div>
+  <div class="bar"><i id="loading-bar"></i></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+const LOGO_B64 = "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";
+document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
+(function(){
+  "use strict";
+
+  const MODE_COLOR = {bus:'#000091', train:'#8b3ea8', tram:'#18753c', metro:'#b8752a'};
+  const MODE_LABEL = {bus:'Bus', train:'Train / RER', tram:'Tramway', metro:'Métro'};
+  const DAY_NAMES = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
+  const collator = new Intl.Collator('fr', {numeric:true, sensitivity:'base'});
+
+  let DATA = null;
+  let map, canvasRenderer;
+  let markers = new Map();
+  let dayIndex = (new Date().getDay() + 6) % 7;
+  let simTime = 8*3600;
+  let playing = true;
+  let speed = 15;
+  let activeModes = new Set(['bus','train']);
+  let selectedRoutes = new Set(); // vide = pas de filtre par ligne
+  let searchQuery = '';
+  let dayTripsCache = null;
+  let lastTick = performance.now();
+
+  function norm(s){ return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  function fmtClock(t){ let s=((t%86400)+86400)%86400; let h=Math.floor(s/3600), m=Math.floor((s%3600)/60); return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+  function $(sel){return document.querySelector(sel)}
+  function $$(sel){return Array.from(document.querySelectorAll(sel))}
+
+  function loadData(){
+    const bar=$('#loading-bar'), txt=$('#loading-txt');
+    fetch('reseau_95.json').then(r=>{
+      const total = +r.headers.get('content-length') || 24000000;
+      const reader = r.body.getReader();
+      let received=0, chunks=[];
+      function pump(){
+        return reader.read().then(({done,value})=>{
+          if(done){ return new Blob(chunks).text(); }
+          chunks.push(value); received+=value.length;
+          const pct=Math.min(100, Math.round(received/total*100));
+          bar.style.width=pct+'%'; txt.textContent=`Chargement du réseau… ${pct}%`;
+          return pump();
+        });
+      }
+      return pump();
+    }).then(text=>{
+      txt.textContent='Préparation de l\'animation…';
+      DATA = JSON.parse(text);
+      init();
+      $('#loading').style.display='none';
+    }).catch(err=>{
+      txt.textContent='Erreur de chargement : '+err.message+' (reseau_95.json doit être dans le même dossier que index.html, servi via http://, pas en double-clic)';
+    });
+  }
+
+  function init(){
+    $('#kpi-lignes').textContent = DATA.routes.length;
+    buildDayTabs();
+    buildLineList();
+    initMap();
+    drawNetwork();
+    rebuildDayTrips();
+    wireControls();
+    updateDayKpi();
+    requestAnimationFrame(tick);
+  }
+
+  function buildDayTabs(){
+    const wrap=$('#day-tabs');
+    wrap.innerHTML = DAY_NAMES.map((n,i)=>`<div class="day-tab ${i===dayIndex?'active':''}" data-day="${i}">${n.slice(0,3)}</div>`).join('');
+    $$('.day-tab').forEach(el=>el.addEventListener('click',()=>{
+      dayIndex=+el.dataset.day;
+      $$('.day-tab').forEach(b=>b.classList.toggle('active', b===el));
+      updateDayKpi();
+      rebuildDayTrips();
+    }));
+  }
+  function updateDayKpi(){ $('#kpi-jour').textContent = DAY_NAMES[dayIndex]; }
+
+  function initMap(){
+    map = L.map('map', {preferCanvas:true, zoomControl:true}).setView([49.05,2.10], 11);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution:'&copy; OpenStreetMap, &copy; CARTO', maxZoom:19, subdomains:'abcd'
+    }).addTo(map);
+    canvasRenderer = L.canvas({padding:0.5});
+    map.on('zoomend', updateLabelClasses);
+    updateLabelClasses();
+  }
+  function updateLabelClasses(){
+    const z = map.getZoom();
+    const el = map.getContainer();
+    el.classList.toggle('show-major-labels', z>=11);
+    el.classList.toggle('show-bus-labels', z>=14);
+  }
+
+  function drawNetwork(){
+    const layer = L.layerGroup();
+    const shapeMode = new Array(DATA.shapes.length).fill(null);
+    const shapeColor = new Array(DATA.shapes.length).fill(null);
+    DATA.trips.forEach(t=>{
+      if(shapeMode[t.s]) return;
+      const r = DATA.routes[t.r];
+      shapeMode[t.s]=r.mode; shapeColor[t.s]= r.color ? ('#'+r.color) : MODE_COLOR[r.mode];
+    });
+    DATA.shapes.forEach((shp,idx)=>{
+      if(!shp.coords || shp.coords.length<2) return;
+      L.polyline(shp.coords, {
+        color: shapeColor[idx] || '#94a3b8',
+        weight: shapeMode[idx]==='train' ? 2 : 1,
+        opacity:0.25, renderer:canvasRenderer, interactive:false
+      }).addTo(layer);
+    });
+    layer.addTo(map);
+  }
+
+  // ---------- Sélecteur de lignes guidé ----------
+  function buildLineList(){
+    const order = ['train','tram','metro','bus'];
+    const byMode = {};
+    DATA.routes.forEach((r,i)=>{ (byMode[r.mode]=byMode[r.mode]||[]).push({...r, idx:i}); });
+    order.forEach(m=> (byMode[m]||[]).sort((a,b)=>collator.compare(a.short,b.short)));
+
+    function render(filterText){
+      const q = norm(filterText||'');
+      let html = '';
+      order.forEach(mode=>{
+        const list = (byMode[mode]||[]).filter(r=>{
+          if(!q) return true;
+          return norm(r.short+' '+r.long+' '+r.agency).includes(q);
+        });
+        if(!list.length) return;
+        html += `<div class="line-group-h">${MODE_LABEL[mode]} · ${list.length}</div>`;
+        html += list.map(r=>{
+          const sel = selectedRoutes.has(r.idx) ? 'selected' : '';
+          const color = r.color ? ('#'+r.color) : MODE_COLOR[r.mode];
+          return `<div class="line-row ${sel}" data-idx="${r.idx}">
+            <div class="badge" style="background:${color}">${escapeHtml(r.short)}</div>
+            <div class="txt"><div class="n">${escapeHtml(r.short)}${r.long && r.long!==r.short ? ' · '+escapeHtml(r.long) : ''}</div><div class="a">${escapeHtml(r.agency||'')}</div></div>
+            <div class="check"></div>
+          </div>`;
+        }).join('');
+      });
+      $('#line-list').innerHTML = html || '<div style="padding:14px;font-size:12px;color:var(--muted)">Aucune ligne ne correspond.</div>';
+      $$('.line-row').forEach(row=>row.addEventListener('click',()=>{
+        const idx = +row.dataset.idx;
+        if(selectedRoutes.has(idx)) selectedRoutes.delete(idx); else selectedRoutes.add(idx);
+        render($('#line-search').value);
+        updateSelectedBar();
+      }));
+    }
+    window.__renderLineList = render;
+    render('');
+    updateSelectedBar();
+  }
+  function updateSelectedBar(){
+    const bar = $('#line-selected-bar');
+    if(selectedRoutes.size===0){ bar.style.display='none'; return; }
+    bar.style.display='flex';
+    const names = Array.from(selectedRoutes).slice(0,4).map(i=>DATA.routes[i].short);
+    $('#line-selected-txt').textContent = selectedRoutes.size+' ligne(s) sélectionnée(s) : '+names.join(', ')+(selectedRoutes.size>4?'…':'');
+  }
+
+  // ---------- Trajets du jour ----------
+  function rebuildDayTrips(){
+    const bit = 1<<dayIndex;
+    dayTripsCache = DATA.trips.filter(t=>(t.days & bit)!==0).map(t=>{
+      const r = DATA.routes[t.r];
+      return {
+        id:t.id, r, ridx:t.r, s:t.s, hs:t.hs, sn:t.sn, dir:t.dir,
+        pts:t.pts, t0:t.pts[0][0], t1:t.pts[t.pts.length-1][0],
+        color: r.color ? ('#'+r.color) : MODE_COLOR[r.mode], mode:r.mode
+      };
+    });
+    markers.forEach(m=>map.removeLayer(m));
+    markers.clear();
+  }
+
+  function interpTrip(trip, tRaw){
+    let t = tRaw;
+    if(t < trip.t0 - 43200) t += 86400;
+    if(t > trip.t1 + 43200) t -= 86400;
+    if(t < trip.t0 || t > trip.t1) return null;
+    const pts = trip.pts;
+    let i=0; while(i<pts.length-2 && pts[i+1][0] < t) i++;
+    const a=pts[i], b=pts[i+1];
+    const frac = (b[0]-a[0])>0 ? (t-a[0])/(b[0]-a[0]) : 0;
+    const dist = a[1] + frac*(b[1]-a[1]);
+    return distOnShape(trip.s, dist);
+  }
+  function distOnShape(shapeIdx, dist){
+    const shp = DATA.shapes[shapeIdx]; const cum=shp.cum, coords=shp.coords;
+    if(dist<=cum[0]) return coords[0];
+    if(dist>=cum[cum.length-1]) return coords[coords.length-1];
+    let lo=0, hi=cum.length-1;
+    while(hi-lo>1){ const mid=(lo+hi)>>1; if(cum[mid]<dist) lo=mid; else hi=mid; }
+    const d0=cum[lo], d1=cum[hi], f=(d1-d0)>0 ? (dist-d0)/(d1-d0) : 0;
+    const p0=coords[lo], p1=coords[hi];
+    return [p0[0]+f*(p1[0]-p0[0]), p0[1]+f*(p1[1]-p0[1])];
+  }
+
+  function tripVisible(trip){
+    if(!activeModes.has(trip.mode)) return false;
+    if(selectedRoutes.size>0 && !selectedRoutes.has(trip.ridx)) return false;
+    return true;
+  }
+
+  function tick(now){
+    const dt = Math.min(0.5, (now-lastTick)/1000); lastTick=now;
+    if(playing){
+      simTime += dt*speed;
+      if(simTime>=86400) simTime-=86400;
+      syncTimeUI();
+    }
+    renderVehicles();
+    requestAnimationFrame(tick);
+  }
+
+  let statCounts={bus:0,train:0,tram:0,metro:0};
+  function renderVehicles(){
+    const seen = new Set();
+    statCounts = {bus:0,train:0,tram:0,metro:0};
+    for(const trip of dayTripsCache){
+      if(!tripVisible(trip)) continue;
+      const pos = interpTrip(trip, simTime);
+      if(!pos) continue;
+      seen.add(trip.id);
+      statCounts[trip.mode] = (statCounts[trip.mode]||0)+1;
+      let mk = markers.get(trip.id);
+      if(!mk){
+        mk = L.circleMarker(pos, {
+          radius: trip.mode==='train' ? 5 : (trip.mode==='tram'||trip.mode==='metro' ? 4.5 : 3.4),
+          color:'#fff', weight:1.2, fillColor:trip.color, fillOpacity:0.95, renderer:canvasRenderer
+        });
+        mk.bindTooltip(trip.r.short, {permanent:true, direction:'right', offset:[7,0], className:'veh-label '+trip.mode});
+        mk.on('click', ()=>showPopup(mk, trip));
+        mk.addTo(map);
+        markers.set(trip.id, mk);
+      } else {
+        mk.setLatLng(pos);
+      }
+    }
+    markers.forEach((mk,id)=>{ if(!seen.has(id)){ map.removeLayer(mk); markers.delete(id); } });
+    $('#kpi-total').textContent = seen.size;
+    $('#kpi-bus').textContent = statCounts.bus||0;
+    $('#kpi-train').textContent = statCounts.train||0;
+    $('#mode-summary').textContent =
+      `${statCounts.bus||0} bus · ${statCounts.train||0} trains/RER · ${(statCounts.tram||0)+(statCounts.metro||0)} tram/métro`;
+  }
+
+  function showPopup(marker, trip){
+    const html = `<div class="veh-pop">
+      <div class="line-badge" style="background:${trip.color}">${escapeHtml(trip.r.short)}</div>
+      <div class="dest">→ ${escapeHtml(trip.hs || 'Destination inconnue')}</div>
+      <div class="meta">
+        ${MODE_LABEL[trip.mode]}${trip.r.agency ? ' · '+escapeHtml(trip.r.agency) : ''}<br>
+        ${trip.sn ? 'N° '+escapeHtml(trip.sn)+'<br>' : ''}
+        Départ ${fmtClock(trip.t0)} · Arrivée ${fmtClock(trip.t1)}
+      </div>
+    </div>`;
+    marker.bindPopup(html).openPopup();
+  }
+  function escapeHtml(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  function syncTimeUI(){
+    $('#time-slider').value = simTime;
+    const h = String(Math.floor(simTime/3600)).padStart(2,'0');
+    const m = String(Math.floor((simTime%3600)/60)).padStart(2,'0');
+    $('#time-input').value = h+':'+m;
+  }
+
+  function wireControls(){
+    $('#play-btn').addEventListener('click', togglePlay);
+    $('#time-slider').addEventListener('input', e=>{ simTime=+e.target.value; syncTimeUI(); });
+    $('#time-input').addEventListener('change', e=>{
+      const [h,m] = e.target.value.split(':').map(Number);
+      if(!isNaN(h)){ simTime = h*3600 + (m||0)*60; syncTimeUI(); }
+    });
+    $('#speed-select').addEventListener('change', e=> speed=+e.target.value);
+    $$('.preset-btn').forEach(b=>b.addEventListener('click', ()=>{ simTime=+b.dataset.t; syncTimeUI(); }));
+    $$('.switch[data-mode] input').forEach(cb=>cb.addEventListener('change', ()=>{
+      const mode = cb.closest('.switch').dataset.mode;
+      if(cb.checked) activeModes.add(mode); else activeModes.delete(mode);
+    }));
+    $('#line-search').addEventListener('input', e=> window.__renderLineList(e.target.value));
+    $('#line-clear').addEventListener('click', ()=>{ selectedRoutes.clear(); window.__renderLineList($('#line-search').value); updateSelectedBar(); });
+    $('#reset-btn').addEventListener('click', ()=>{
+      activeModes = new Set(['bus','train']);
+      $$('.switch[data-mode] input').forEach(cb=>cb.checked=['bus','train'].includes(cb.closest('.switch').dataset.mode));
+      selectedRoutes.clear(); $('#line-search').value=''; window.__renderLineList('');
+      updateSelectedBar();
+      simTime = 8*3600; syncTimeUI();
+      playing=true; $('#play-btn').textContent='⏸';
+      map.setView([49.05,2.10],11);
+    });
+    wireSheet();
+    $('#present-btn').addEventListener('click', togglePresent);
+    document.addEventListener('keydown', e=>{
+      if(e.key.toLowerCase()==='p' && !['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName)){
+        togglePresent();
+      }
+    });
+    syncTimeUI();
+  }
+  function wireSheet(){
+    const sheet = $('#sidebar'), handle = $('#sheet-handle');
+    if(!handle) return;
+    let startY=0, startTranslate=0, dragging=false, moved=false;
+    const collapsedPx = () => sheet.getBoundingClientRect().height - 158;
+
+    function getCurrentTranslate(){
+      const st = getComputedStyle(sheet).transform;
+      if(st && st !== 'none'){
+        const m = new DOMMatrixReadOnly(st);
+        return m.m42;
+      }
+      return sheet.classList.contains('expanded') ? 0 : collapsedPx();
+    }
+    function onDown(e){
+      dragging = true; moved = false;
+      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+      startTranslate = getCurrentTranslate();
+      sheet.classList.add('dragging');
+    }
+    function onMove(e){
+      if(!dragging) return;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY);
+      const dy = y - startY;
+      if(Math.abs(dy) > 4) moved = true;
+      let t = startTranslate + dy;
+      t = Math.max(0, Math.min(collapsedPx(), t));
+      sheet.style.transform = `translateY(${t}px)`;
+    }
+    function onUp(e){
+      if(!dragging) return;
+      dragging = false;
+      sheet.classList.remove('dragging');
+      sheet.style.transform = '';
+      const y = (e.changedTouches ? e.changedTouches[0].clientY : e.clientY);
+      const dy = y - startY;
+      if(!moved){
+        sheet.classList.toggle('expanded');
+      } else if(dy < -40){
+        sheet.classList.add('expanded');
+      } else if(dy > 40){
+        sheet.classList.remove('expanded');
+      } else {
+        // pas assez de mouvement : revient a l'etat le plus proche du point de depart
+        const cur = startTranslate + dy;
+        if(cur < collapsedPx()/2) sheet.classList.add('expanded');
+        else sheet.classList.remove('expanded');
+      }
+    }
+    handle.addEventListener('pointerdown', e=>{ handle.setPointerCapture(e.pointerId); onDown(e); });
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onUp);
+  }
+
+  function togglePresent(){
+    document.body.classList.toggle('present-mode');
+    const on = document.body.classList.contains('present-mode');
+    $('#present-btn').textContent = on ? '⛶ Quitter (P)' : '⛶ Mode présentation';
+    setTimeout(()=> map.invalidateSize(), 210);
+  }
+  function togglePlay(){
+    playing=!playing;
+    $('#play-btn').textContent = playing ? '⏸' : '▶';
+    lastTick = performance.now();
+  }
+
+  loadData();
+})();
+</script>
 </body>
 </html>
