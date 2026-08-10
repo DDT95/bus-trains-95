@@ -374,6 +374,7 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
   let searchQuery = '';
   let dayTripsCache = null;
   let lastTick = performance.now();
+  let realtimeLoaderTimer = null;
 
   function norm(s){ return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
   function fmtClock(t){ let s=((t%86400)+86400)%86400; let h=Math.floor(s/3600), m=Math.floor((s%3600)/60); return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
@@ -635,7 +636,10 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
     $('#openComprendre3').addEventListener('click', ()=>$('#comprendreDialog').showModal());
     $$('#comprendreDialog [data-close]').forEach(btn=>btn.addEventListener('click', ()=>$('#comprendreDialog').close()));
     $('#comprendreDialog').addEventListener('click', e=>{ if(e.target===$('#comprendreDialog')) $('#comprendreDialog').close(); });
-    $('#realtime-frame').addEventListener('load', ()=>$('#realtime-loader').hidden=true);
+    $('#realtime-frame').addEventListener('load', ()=>{
+      clearTimeout(realtimeLoaderTimer);
+      realtimeLoaderTimer = setTimeout(()=>$('#realtime-loader').hidden=true, 2600);
+    });
     $('#play-btn').addEventListener('click', togglePlay);
     $('#time-slider').addEventListener('input', e=>{ simTime=+e.target.value; syncTimeUI(); });
     $('#time-input').addEventListener('change', e=>{
@@ -681,7 +685,14 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
       ? 'Positions ferroviaires observées en direct. Aucun flux bus temps réel homogène n’est disponible.'
       : 'Animation d’une semaine type à partir des horaires GTFS.';
     $('#mapStatus').textContent = realtime ? 'Trains · positions en direct' : 'Horaires théoriques · semaine type';
-    if(realtime && !$('#realtime-frame').src){ $('#realtime-loader').hidden=false; $('#realtime-frame').src = REALTIME_URL; }
+    if(realtime){
+      clearTimeout(realtimeLoaderTimer);
+      $('#realtime-loader').hidden=false;
+      if(!$('#realtime-frame').src) $('#realtime-frame').src = REALTIME_URL;
+      else realtimeLoaderTimer = setTimeout(()=>$('#realtime-loader').hidden=true, 1200);
+    } else {
+      $('#realtime-loader').hidden=true;
+    }
     playing = !realtime;
     if(!realtime) setTimeout(()=>map.invalidateSize(), 50);
   }
