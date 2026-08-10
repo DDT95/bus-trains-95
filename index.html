@@ -4,26 +4,60 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#000091" />
-  <title>Bus et trains · Val-d’Oise</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta name="description" content="Bus et trains dans le Val-d’Oise — offre théorique et temps réel ferroviaire" />
+  <title>Bus et trains · Val-d’Oise · DDT 95</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script type="module" src="./app.js"></script>
 </head>
 <body>
-  <header>
-    <img src="prefet-val-doise.png" alt="Préfet du Val-d’Oise" />
-    <div><span>MOBILITÉS · VAL-D’OISE</span><h1>Bus et trains</h1><p>Horaires théoriques et circulation en temps réel</p></div>
-    <a href="https://ddt95.github.io/atlas-territorial-95/">← Retour à l’Atlas</a>
+  <header class="topbar">
+    <a class="brand-logo-link" href="https://ddt95.github.io/atlas-territorial-95/" aria-label="Retour à l’Atlas territorial"><img class="brand-logo" src="./prefet-val-doise.png" alt="Préfet du Val-d’Oise" /></a>
+    <div class="title-block"><span class="eyebrow">MOBILITÉS · BUS & TRAINS · VAL-D’OISE</span><h1>Comment circulent les bus et les trains ?</h1><p>Offre théorique d’une semaine type et circulation ferroviaire en temps réel</p></div>
+    <button id="mobileLayers" class="mobile-layers" aria-controls="layerSidebar" aria-expanded="false">Données</button>
+    <button id="openMethodTop" class="livebox"><span class="fresh-dot"></span><div><strong>Sources & méthode</strong><small>Comprendre les données affichées</small></div></button>
   </header>
-  <main>
-    <nav class="selector" aria-label="Choix de la carte">
-      <div class="selector-group"><span>Réseau</span><button class="active" data-network="bus" aria-pressed="true">Bus</button><button data-network="train" aria-pressed="false">Train · RER</button></div>
-      <div class="selector-group"><span>Donnée</span><button class="active" data-mode="theoretical" aria-pressed="true">Théorique</button><button data-mode="realtime" aria-pressed="false" disabled>Temps réel</button></div>
-      <p id="status">Bus · horaires théoriques GTFS</p>
-    </nav>
-    <section class="viewer">
-      <div class="viewer-head"><div><i></i><strong id="viewer-title">Bus — semaine type</strong><small id="viewer-source">Île-de-France Mobilités · GTFS</small></div><a id="open-view" target="_blank" rel="noreferrer">Ouvrir en plein écran ↗</a></div>
+
+  <main class="workspace">
+    <aside id="layerSidebar" class="sidebar" aria-label="Choix du réseau et du type de donnée">
+      <div class="sidebar-intro"><div><span class="eyebrow">LECTURE CARTOGRAPHIQUE</span><h2>Explorer les circulations</h2><p>Choisissez un réseau, puis comparez l’offre programmée aux positions disponibles en direct.</p></div></div>
+
+      <section class="control-section" aria-labelledby="network-label">
+        <span id="network-label">RÉSEAU</span>
+        <div class="choice-cards">
+          <button class="choice-card active" data-network="bus" aria-pressed="true"><i class="mode-switch"></i><span><b>Bus</b><small>Lignes du Val-d’Oise et connexions</small></span><em class="mode-color bus"></em></button>
+          <button class="choice-card" data-network="train" aria-pressed="false"><i class="mode-switch"></i><span><b>Train · RER</b><small>RER, Transilien et TER</small></span><em class="mode-color train"></em></button>
+        </div>
+      </section>
+
+      <section class="control-section" aria-labelledby="data-label">
+        <span id="data-label">TYPE DE DONNÉE</span>
+        <div class="choice-cards">
+          <button class="choice-card active" data-mode="theoretical" aria-pressed="true"><i class="mode-switch"></i><span><b>Offre théorique</b><small>Animation d’une semaine type GTFS</small></span><em class="mode-color theoretical"></em></button>
+          <button class="choice-card" data-mode="realtime" aria-pressed="false" disabled><i class="mode-switch"></i><span><b>Temps réel</b><small>Positions en direct · réseau ferré</small></span><em class="mode-color realtime"></em></button>
+        </div>
+      </section>
+
+      <div class="sidebar-hint"><strong id="status-title">Bus · offre théorique</strong><span id="status">Les véhicules sont animés à partir des horaires programmés d’une semaine type.</span></div>
+      <button id="openMethod" class="sources-inline">Sources, millésimes et limites</button>
+      <div class="sidebar-footer"><span class="fresh-dot"></span><div><strong id="footer-state">GTFS Île-de-France Mobilités</strong><small id="footer-detail">Horaires théoriques · semaine type</small></div></div>
+    </aside>
+
+    <section class="map-shell" aria-label="Carte interactive des bus et des trains">
       <iframe id="map-frame" title="Carte des transports" allow="fullscreen" referrerpolicy="no-referrer"></iframe>
+      <div class="map-legend"><strong id="viewer-title">Bus — semaine type</strong><span id="viewer-source">Île-de-France Mobilités · GTFS</span><a id="open-view" target="_blank" rel="noreferrer">Ouvrir en plein écran ↗</a></div>
+      <div class="map-note"><span class="pulse"></span><span id="map-status">Carte théorique · utilisez la chronologie pour parcourir la journée</span></div>
     </section>
   </main>
-  <script type="module" src="./app.js"></script>
+
+  <dialog id="methodDialog" class="dialog">
+    <button class="dialog-close" aria-label="Fermer">×</button>
+    <div class="dialog-header"><span class="eyebrow">TRAÇABILITÉ</span><h2>Comprendre la carte</h2><p>Ce que montrent les cartes, leur fraîcheur et leurs limites.</p></div>
+    <div class="dialog-body">
+      <h3>Offre théorique</h3><p>Les positions animées des bus et des trains sont reconstituées à partir des horaires GTFS d’Île-de-France Mobilités. Elles représentent une semaine type et non la position observée d’un véhicule.</p>
+      <h3>Temps réel ferroviaire</h3><p>La vue en direct restitue les positions ferroviaires publiées par Île-de-France Mobilités. La disponibilité et la fraîcheur dépendent du flux source.</p>
+      <h3>Pourquoi pas de temps réel bus ?</h3><p>Aucun flux de positions bus suffisamment fiable et homogène n’est disponible dans les sources actuellement intégrées. Le bouton reste donc désactivé plutôt que de présenter une simulation comme du temps réel.</p>
+      <div class="source-cards"><div class="source-card"><h3>Données théoriques</h3><p>GTFS Île-de-France Mobilités · horaires, lignes et parcours.</p><a href="https://prim.iledefrance-mobilites.fr/" target="_blank" rel="noreferrer">Voir PRIM ↗</a></div><div class="source-card"><h3>Code source</h3><p>Page autonome et méthode d’intégration disponibles sur GitHub.</p><a href="https://github.com/DDT95/bus-trains-95" target="_blank" rel="noreferrer">Voir le dépôt ↗</a></div></div>
+    </div>
+  </dialog>
 </body>
 </html>
