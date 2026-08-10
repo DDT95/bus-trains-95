@@ -358,7 +358,7 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
   const MODE_COLOR = {bus:'#000091', train:'#8b3ea8', tram:'#18753c', metro:'#b8752a'};
   const MODE_LABEL = {bus:'Bus', train:'Train / RER', tram:'Tramway', metro:'Métro'};
   const DAY_NAMES = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
-  const REALTIME_URL = 'https://piece-jointe-carto.developpement-durable.gouv.fr/DEPT095A/CARTOGRAPHIE/CARTE_STATIQUE/2026/26_07_4873/idf_TR/index_idf_tr_mobile.html';
+  const REALTIME_URL = './realtime.html';
   const collator = new Intl.Collator('fr', {numeric:true, sensitivity:'base'});
 
   let DATA = null;
@@ -516,10 +516,23 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
   }
   function updateSelectedBar(){
     const bar = $('#line-selected-bar');
-    if(selectedRoutes.size===0){ bar.style.display='none'; return; }
-    bar.style.display='flex';
-    const names = Array.from(selectedRoutes).slice(0,4).map(i=>DATA.routes[i].short);
-    $('#line-selected-txt').textContent = selectedRoutes.size+' ligne(s) sélectionnée(s) : '+names.join(', ')+(selectedRoutes.size>4?'…':'');
+    if(selectedRoutes.size===0){
+      bar.style.display='none';
+    } else {
+      bar.style.display='flex';
+      const names = Array.from(selectedRoutes).slice(0,4).map(i=>DATA.routes[i].short);
+      $('#line-selected-txt').textContent = selectedRoutes.size+' ligne(s) sélectionnée(s) : '+names.join(', ')+(selectedRoutes.size>4?'…':'');
+    }
+    syncRealtimeFilters();
+  }
+  function syncRealtimeFilters(){
+    const iframe = $('#realtime-frame');
+    if(!iframe?.contentWindow) return;
+    const lines = Array.from(selectedRoutes)
+      .map(idx=>DATA.routes[idx])
+      .filter(route=>route?.mode === 'train')
+      .map(route=>route.short);
+    iframe.contentWindow.postMessage({type:'transport95:filter-lines', lines, filterActive:dataView==='realtime'}, location.origin);
   }
 
   // ---------- Trajets du jour ----------
@@ -640,6 +653,7 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
     $('#realtime-frame').addEventListener('load', ()=>{
       clearTimeout(realtimeLoaderTimer);
       realtimeLoaderTimer = setTimeout(()=>$('#realtime-loader').hidden=true, 2600);
+      syncRealtimeFilters();
     });
     $('#play-btn').addEventListener('click', togglePlay);
     $('#time-slider').addEventListener('input', e=>{ simTime=+e.target.value; syncTimeUI(); });
@@ -677,7 +691,7 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
     const realtime = view === 'realtime';
     dataView = view;
     if(realtime){
-      selectedRoutes = new Set(Array.from(selectedRoutes).filter(idx=>DATA.routes[idx]?.mode === 'train'));
+      selectedRoutes = new Set(DATA.routes.map((route,idx)=>route.mode === 'train' ? idx : null).filter(idx=>idx!==null));
     }
     document.body.classList.toggle('realtime-mode', realtime);
     $('#view-theoretical').classList.toggle('active', !realtime);

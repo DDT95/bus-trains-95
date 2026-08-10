@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Trains en temps réel</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    html,body,#map{height:100%;margin:0}
+    body{font-family:Arial,sans-serif;background:#f4f7f8;color:#161832}
+    .leaflet-container{background:#eef3f4}
+    #state{position:absolute;right:16px;top:16px;z-index:800;background:#fff;border:1px solid #d9e1e8;border-radius:14px;padding:10px 14px;box-shadow:0 8px 24px #00132b1c;font-size:12px;font-weight:700}
+    #state i{display:inline-block;width:9px;height:9px;margin-right:7px;border-radius:50%;background:#18753c}
+    #state.loading i{background:#e3a008}#state.error i{background:#e1000f}
+    #filter{position:absolute;left:16px;bottom:16px;z-index:800;background:#fff;border:1px solid #d9e1e8;border-radius:13px;padding:9px 12px;box-shadow:0 8px 24px #00132b1c;font-size:12px;color:#536176}
+    #filter strong{color:#000091}
+    .veh-pop .badge{display:inline-block;padding:4px 10px;border-radius:7px;color:#fff;font-weight:800}.veh-pop b{display:block;margin:8px 0 3px}.veh-pop small{color:#667085}
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="state" class="loading"><i></i><span>Connexion au flux IDFM…</span></div>
+  <div id="filter">Toutes les lignes ferroviaires</div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+  (()=>{
+    'use strict';
+    const BASE='https://piece-jointe-carto.developpement-durable.gouv.fr/DEPT095A/CARTOGRAPHIE/CARTE_STATIQUE/2026/26_07_4873/idf_TR/';
+    const META_URL=BASE+'reseau_idf_meta.json', LIVE_URL=BASE+'prim_proxy.php';
+    const map=L.map('map',{preferCanvas:true,zoomControl:true,attributionControl:true}).setView([48.91,2.25],10);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd',attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
+    const renderer=L.canvas({padding:.5}), markers=new Map(), vehicles=new Map(), routeByCode=new Map();
+    let meta=null, selectedLines=new Set(), filterActive=false, timer=null;
+    const norm=s=>(s||'').toString().trim().toUpperCase().replace(/^RER\s+/, '');
+    const numericId=ref=>{const p=(ref||'').split(':').filter(Boolean);return p[p.length-1]||null};
+    function status(text,kind=''){const el=document.querySelector('#state');el.className=kind;el.querySelector('span').textContent=text}
+    function lineAllowed(short){return !filterActive||selectedLines.has(norm(short))}
+    function updateFilterLabel(){const el=document.querySelector('#filter');el.innerHTML=!filterActive?'Toutes les lignes ferroviaires':selectedLines.size?'<strong>Lignes affichées :</strong> '+[...selectedLines].join(', '):'<strong>Aucune ligne sélectionnée</strong>'}
+    window.addEventListener('message',e=>{
+      if(e.origin!==location.origin||e.data?.type!=='transport95:filter-lines')return;
+      selectedLines=new Set((e.data.lines||[]).map(norm));filterActive=Boolean(e.data.filterActive);updateFilterLabel();render(Date.now());
+    });
+    function load(){
+      fetch(META_URL,{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(new Error('métadonnées HTTP '+r.status))).then(data=>{
+        meta=data;data.routes.forEach((route,i)=>routeByCode.set(route.id.split(':').pop(),i));
+        const layer=L.layerGroup();
+        data.shapes.forEach(shape=>{if(shape.coords?.length>1)L.polyline(shape.coords,{color:'#7590ad',weight:1,opacity:.22,renderer,interactive:false}).addTo(layer)});layer.addTo(map);
+        refresh();
+      }).catch(err=>status('Réseau indisponible · '+err.message,'error'));
+    }
+    function refresh(){
+      status('Actualisation du flux IDFM…','loading');
+      fetch(LIVE_URL,{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(new Error('flux HTTP '+r.status))).then(ingest).then(()=>status(vehicles.size+' circulations ferroviaires reçues','')).catch(err=>status('Flux indisponible · '+err.message,'error')).finally(()=>{clearTimeout(timer);timer=setTimeout(refresh,60000)});
+    }
+    function ingest(data){
+      let frames=[];try{frames=data.Siri.ServiceDelivery.EstimatedTimetableDelivery[0].EstimatedJourneyVersionFrame||[]}catch(_){throw new Error('réponse IDFM invalide')}
+      const now=Date.now();
+      frames.forEach(frame=>(frame.EstimatedVehicleJourney||[]).forEach(evj=>{
+        const code=numericId(evj.LineRef?.value),idx=routeByCode.get(code);if(idx===undefined)return;
+        const route=meta.routes[idx];if(route.mode!=='train')return;
+        const calls=((evj.EstimatedCalls?.EstimatedCall)||[]).map(call=>{
+          const stopId=numericId(call.StopPointRef?.value||call.DepartureStopAssignment?.ExpectedQuayRef?.value),stop=stopId?meta.stops[stopId]:null;
+          const raw=call.ExpectedArrivalTime||call.AimedArrivalTime||call.ExpectedDepartureTime||call.AimedDepartureTime,t=Date.parse(raw);return stop&&!isNaN(t)?{t,lat:stop[0],lon:stop[1],name:stop[2]}:null;
+        }).filter(Boolean).sort((a,b)=>a.t-b.t);if(calls.length<2||calls.at(-1).t<now-600000)return;
+        const key=evj.DatedVehicleJourneyRef?.value||(route.id+'_'+calls[0].t);
+        vehicles.set(key,{short:route.short,color:route.color?'#'+route.color:'#8b3ea8',dest:evj.DestinationName?.[0]?.value||'',calls,lastSeen:now});
+      }));
+      vehicles.forEach((v,k)=>{if(now-v.lastSeen>150000)vehicles.delete(k)});render(now);
+    }
+    function position(v,now){const c=v.calls;if(now<c[0].t||now>c.at(-1).t)return null;let i=0;while(i<c.length-2&&c[i+1].t<now)i++;const a=c[i],b=c[i+1],f=(now-a.t)/Math.max(1,b.t-a.t);return{lat:a.lat+f*(b.lat-a.lat),lon:a.lon+f*(b.lon-a.lon),next:b.name}}
+    function render(now){
+      const seen=new Set();vehicles.forEach((v,key)=>{if(!lineAllowed(v.short))return;const p=position(v,now);if(!p)return;seen.add(key);let m=markers.get(key);if(!m){m=L.circleMarker([p.lat,p.lon],{radius:6,color:'#fff',weight:1.5,fillColor:v.color,fillOpacity:.97,renderer}).addTo(map);markers.set(key,m)}else m.setLatLng([p.lat,p.lon]);m.unbindPopup().bindPopup('<div class="veh-pop"><span class="badge" style="background:'+v.color+'">'+v.short+'</span><b>→ '+(v.dest||'Destination non renseignée')+'</b><small>Prochain arrêt : '+(p.next||'—')+'</small></div>')});
+      markers.forEach((m,key)=>{if(!seen.has(key)){map.removeLayer(m);markers.delete(key)}});
+      if(document.querySelector('#state').className!=='error')status(seen.size+' train'+(seen.size>1?'s':'')+' affiché'+(seen.size>1?'s':''),'');
+    }
+    setInterval(()=>render(Date.now()),10000);updateFilterLabel();load();
+  })();
+  </script>
+</body>
+</html>
