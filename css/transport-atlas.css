@@ -35,11 +35,10 @@ body{overflow:hidden}
 body.realtime-mode #body-row{display:grid}
 body.realtime-mode #map-wrap{display:none}
 body.realtime-mode #realtime-view{display:block;grid-column:2}
-body.realtime-mode #sidebar .side-block{display:none}
-body.realtime-mode #sidebar #reset-btn{display:none}
+body.realtime-mode #sidebar .side-block,
+body.realtime-mode #sidebar #reset-btn,
 body.realtime-mode #sidebar .transport-selector,
-body.realtime-mode #sidebar .sources-inline,
-body.realtime-mode #sidebar .sidebar-footer{display:block}
+body.realtime-mode #sidebar .sources-inline{display:block}
 body.realtime-mode #sidebar .sidebar-footer{display:flex}
 .realtime-loader{position:absolute;inset:0;z-index:3;display:grid;place-items:center;background:#f4f7f8}
 .realtime-loader[hidden]{display:none}
