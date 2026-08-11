@@ -63,13 +63,16 @@
           const raw=call.ExpectedArrivalTime||call.AimedArrivalTime||call.ExpectedDepartureTime||call.AimedDepartureTime,t=Date.parse(raw);return stop&&!isNaN(t)?{t,lat:stop[0],lon:stop[1],name:stop[2]}:null;
         }).filter(Boolean).sort((a,b)=>a.t-b.t);if(calls.length<2||calls.at(-1).t<now-600000)return;
         const key=evj.DatedVehicleJourneyRef?.value||(route.id+'_'+calls[0].t);
-        vehicles.set(key,{short:route.short,color:route.color?'#'+route.color:'#8b3ea8',dest:evj.DestinationName?.[0]?.value||'',calls,lastSeen:now});
+        const mission=evj.JourneyNote?.[0]?.value||'';
+        const vehicleName=evj.VehicleJourneyName?.[0]?.value||'';
+        vehicles.set(key,{short:route.short,color:route.color?'#'+route.color:'#8b3ea8',dest:evj.DestinationName?.[0]?.value||calls.at(-1)?.name||'',origin:evj.OriginName?.[0]?.value||calls[0]?.name||'',mission,vehicleName,recordedAt:evj.RecordedAtTime||'',calls,lastSeen:now});
       }));
       vehicles.forEach((v,k)=>{if(now-v.lastSeen>150000)vehicles.delete(k)});render(now);
     }
-    function position(v,now){const c=v.calls;if(now<c[0].t||now>c.at(-1).t)return null;let i=0;while(i<c.length-2&&c[i+1].t<now)i++;const a=c[i],b=c[i+1],f=(now-a.t)/Math.max(1,b.t-a.t);return{lat:a.lat+f*(b.lat-a.lat),lon:a.lon+f*(b.lon-a.lon),next:b.name}}
+    function position(v,now){const c=v.calls;if(now<c[0].t||now>c.at(-1).t)return null;let i=0;while(i<c.length-2&&c[i+1].t<now)i++;const a=c[i],b=c[i+1],f=(now-a.t)/Math.max(1,b.t-a.t);return{lat:a.lat+f*(b.lat-a.lat),lon:a.lon+f*(b.lon-a.lon),next:b.name,nextTime:b.t}}
+    function clock(value){const d=new Date(value);return isNaN(d)?'':d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
     function render(now){
-      const seen=new Set();vehicles.forEach((v,key)=>{if(!lineAllowed(v.short))return;const p=position(v,now);if(!p)return;seen.add(key);let m=markers.get(key);if(!m){m=L.circleMarker([p.lat,p.lon],{radius:6,color:'#fff',weight:1.5,fillColor:v.color,fillOpacity:.97,renderer}).addTo(map);m.on('click',()=>parent.postMessage({type:'transport95:vehicle',vehicle:{kind:'Train / RER',line:v.short,color:v.color,destination:v.dest||'Destination non renseignée',nextStop:p.next||'Non renseigné',agency:'Île-de-France Mobilités',service:key,status:'Position estimée en direct',freshness:'Flux IDFM actualisé toutes les 5 minutes'}},location.origin));markers.set(key,m)}else m.setLatLng([p.lat,p.lon])});
+      const seen=new Set();vehicles.forEach((v,key)=>{if(!lineAllowed(v.short))return;const p=position(v,now);if(!p)return;seen.add(key);let m=markers.get(key);if(!m){m=L.circleMarker([p.lat,p.lon],{radius:6,color:'#fff',weight:1.5,fillColor:v.color,fillOpacity:.97,renderer}).addTo(map);markers.set(key,m)}else m.setLatLng([p.lat,p.lon]);m.off('click').on('click',()=>parent.postMessage({type:'transport95:vehicle',vehicle:{kind:'Train / RER',line:v.short,color:v.color,mission:v.mission,vehicleName:v.vehicleName,origin:v.origin,destination:v.dest||'Destination non renseignée',nextStop:p.next||'',nextTime:clock(p.nextTime),departure:clock(v.calls[0]?.t),arrival:clock(v.calls.at(-1)?.t),recordedAt:clock(v.recordedAt),agency:'Île-de-France Mobilités',service:key,status:'Position estimée en direct',freshness:'Position issue du flux IDFM, actualisé toutes les 5 minutes'}},location.origin))});
       markers.forEach((m,key)=>{if(!seen.has(key)){map.removeLayer(m);markers.delete(key)}});
       if(document.querySelector('#state').className!=='error')status(seen.size+' train'+(seen.size>1?'s':'')+' affiché'+(seen.size>1?'s':''),'');
     }

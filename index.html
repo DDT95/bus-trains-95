@@ -193,7 +193,7 @@ body.present-mode #present-btn{background:var(--blue);color:#fff;border-color:va
 .vehicle-head{position:relative;padding:24px 72px 21px 26px;background:#f5f7fb;border-top:6px solid var(--vehicle-color,var(--blue));border-bottom:1px solid var(--line)}
 .vehicle-head .eyebrow{display:block;color:var(--blue);font-size:11px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}.vehicle-head h2{margin:11px 0 5px;font-size:29px;line-height:1}.vehicle-head p{margin:0;color:var(--muted);font-size:13px;font-weight:650;line-height:1.45}
 #vehicle-close{position:absolute;right:18px;top:17px;width:42px;height:42px;border:0;border-radius:50%;background:#fff;color:var(--ink);font-size:27px;cursor:pointer}
-.vehicle-body{padding:18px;overflow:auto}.vehicle-card{padding:17px 18px;border:1px solid var(--line);border-radius:17px;margin-bottom:12px}.vehicle-card h3{margin:0 0 13px;color:var(--navy);font-size:15px}.vehicle-line{display:flex;align-items:center;gap:12px}.vehicle-badge{min-width:52px;height:42px;padding:0 12px;border-radius:10px;display:grid;place-items:center;color:#fff;font-size:20px;font-weight:800}.vehicle-line strong{display:block;font-size:15px}.vehicle-line small{display:block;margin-top:3px;color:var(--muted)}.vehicle-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.vehicle-fact{padding:12px;border-radius:12px;background:#f7f8fb}.vehicle-fact span{display:block;color:var(--muted);font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.06em}.vehicle-fact b{display:block;margin-top:5px;font-size:13px;line-height:1.35}.vehicle-note{color:var(--muted);font-size:11px;line-height:1.5}
+.vehicle-body{padding:18px;overflow:auto}.vehicle-card{padding:17px 18px;border:1px solid var(--line);border-radius:17px;margin-bottom:12px}.vehicle-card h3{margin:0 0 13px;color:var(--navy);font-size:15px}.vehicle-line{display:flex;align-items:center;gap:12px}.vehicle-badge{min-width:52px;height:42px;padding:0 12px;border-radius:10px;display:grid;place-items:center;color:#fff;font-size:20px;font-weight:800}.vehicle-line strong{display:block;font-size:15px}.vehicle-line small{display:block;margin-top:3px;color:var(--muted)}.vehicle-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}.vehicle-fact{min-width:0;padding:12px;border-radius:12px;background:#f7f8fb}.vehicle-fact.wide{grid-column:1/-1}.vehicle-fact span{display:block;color:var(--muted);font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.06em}.vehicle-fact b{display:block;margin-top:5px;font-size:13px;line-height:1.35;overflow-wrap:anywhere}.vehicle-mission{display:inline-flex;align-items:center;margin-left:auto;padding:7px 11px;border-radius:10px;background:#eef0ff;color:var(--navy);font-size:15px;font-weight:850;letter-spacing:.08em}.vehicle-note{color:var(--muted);font-size:11px;line-height:1.5}.vehicle-tech{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;color:var(--muted);font-size:11px}.vehicle-tech summary{cursor:pointer;font-weight:700;color:var(--blue)}.vehicle-tech code{display:block;margin-top:8px;padding:9px;background:#f7f8fb;border-radius:8px;white-space:normal;overflow-wrap:anywhere;font-size:10px}.traffic-link{display:flex;gap:10px;align-items:flex-start;color:inherit;text-decoration:none}.traffic-dot{flex:0 0 10px;width:10px;height:10px;margin-top:4px;border-radius:50%;background:#f5a623}.traffic-link strong{display:block;color:var(--navy);font-size:13px}.traffic-link span{display:block;margin-top:4px;color:var(--muted);font-size:11px;line-height:1.45}
 @media(max-width:700px){#vehicle-panel{left:8px;right:8px;top:auto;bottom:8px;width:auto;max-height:72vh;border-radius:22px;transform:translateY(calc(100% + 20px))}#vehicle-panel.open{transform:none}}
 
 #sidebar-toggle{display:none}
@@ -645,7 +645,7 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
     openVehiclePanel({
       kind:MODE_LABEL[trip.mode], line:trip.r.short, color:trip.color,
       destination:trip.hs||'Destination non renseignée', agency:trip.r.agency||'Île-de-France Mobilités',
-      service:trip.sn||trip.id, departure:fmtClock(trip.t0), arrival:fmtClock(trip.t1),
+      mission:trip.sn||'', service:trip.id, departure:fmtClock(trip.t0), arrival:fmtClock(trip.t1),
       status:'Horaire théorique', freshness:`${DAY_NAMES[dayIndex]} · heure simulée ${fmtClock(simTime)}`
     });
   }
@@ -655,18 +655,19 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
     $('#vehicle-kind').textContent=(info.kind||'Véhicule').toUpperCase();
     $('#vehicle-title').textContent='Ligne '+(info.line||'—');
     $('#vehicle-subtitle').textContent='Vers '+(info.destination||'Destination non renseignée');
+    const fact=(label,value,wide=false)=>value?`<div class="vehicle-fact${wide?' wide':''}"><span>${label}</span><b>${escapeHtml(value)}</b></div>`:'';
     $('#vehicle-body').innerHTML=`
-      <section class="vehicle-card"><h3>Circulation</h3><div class="vehicle-line"><span class="vehicle-badge" style="background:${info.color||'#000091'}">${escapeHtml(info.line||'—')}</span><div><strong>${escapeHtml(info.kind||'Transport collectif')}</strong><small>${escapeHtml(info.agency||'Île-de-France Mobilités')}</small></div></div></section>
+      <section class="vehicle-card"><h3>Circulation</h3><div class="vehicle-line"><span class="vehicle-badge" style="background:${info.color||'#000091'}">${escapeHtml(info.line||'—')}</span><div><strong>${escapeHtml(info.kind||'Transport collectif')}</strong><small>${escapeHtml(info.agency||'Île-de-France Mobilités')}</small></div>${info.mission?`<span class="vehicle-mission" title="Code mission">${escapeHtml(info.mission)}</span>`:''}</div></section>
       <section class="vehicle-card"><h3>Trajet et horaires</h3><div class="vehicle-grid">
-        <div class="vehicle-fact"><span>Destination</span><b>${escapeHtml(info.destination||'—')}</b></div>
-        <div class="vehicle-fact"><span>Prochain arrêt</span><b>${escapeHtml(info.nextStop||'Non renseigné')}</b></div>
-        <div class="vehicle-fact"><span>Départ</span><b>${escapeHtml(info.departure||'—')}</b></div>
-        <div class="vehicle-fact"><span>Arrivée</span><b>${escapeHtml(info.arrival||'—')}</b></div>
+        ${fact('Origine',info.origin)}${fact('Destination',info.destination)}
+        ${fact('Prochain arrêt',info.nextStop)}${fact('Passage prévu',info.nextTime)}
+        ${fact('Premier départ',info.departure)}${fact('Arrivée au terminus',info.arrival)}
       </div></section>
       <section class="vehicle-card"><h3>Données de service</h3><div class="vehicle-grid">
-        <div class="vehicle-fact"><span>Course / véhicule</span><b>${escapeHtml(info.service||'Non renseigné')}</b></div>
-        <div class="vehicle-fact"><span>État</span><b>${escapeHtml(info.status||'—')}</b></div>
-      </div><p class="vehicle-note">${escapeHtml(info.freshness||'Source : Île-de-France Mobilités')}</p></section>`;
+        ${fact('État',info.status)}${fact('Dernière observation',info.recordedAt)}
+        ${fact('Code mission',info.mission)}${fact('Mission complète',info.vehicleName)}
+      </div>${info.service?`<details class="vehicle-tech"><summary>Identifiant technique de la course</summary><code>${escapeHtml(info.service)}</code></details>`:''}<p class="vehicle-note">${escapeHtml(info.freshness||'Source : Île-de-France Mobilités')}</p></section>
+      <section class="vehicle-card"><h3>Information trafic</h3><a class="traffic-link" href="https://www.iledefrance-mobilites.fr/le-reseau/etat-du-trafic" target="_blank" rel="noopener"><i class="traffic-dot"></i><span><strong>Perturbations de la ligne ${escapeHtml(info.line||'')}</strong><span>Le flux de position ne contient pas les incidents. Consulter l’état du trafic officiel Île-de-France Mobilités ↗</span></span></a></section>`;
     panel.classList.add('open');panel.setAttribute('aria-hidden','false');
   }
   function closeVehiclePanel(){const panel=$('#vehicle-panel');panel.classList.remove('open');panel.setAttribute('aria-hidden','true')}
