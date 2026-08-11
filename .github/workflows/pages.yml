@@ -26,7 +26,14 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Actualiser le flux ferroviaire IDFM
-        run: curl --fail --silent --show-error --retry 3 --max-time 90 "https://piece-jointe-carto.developpement-durable.gouv.fr/DEPT095A/CARTOGRAPHIE/CARTE_STATIQUE/2026/26_07_4873/idf_TR/prim_proxy.php" --output public/live.json
+        run: |
+          curl --fail --silent --show-error --retry 1 --connect-timeout 10 --max-time 45 \
+            "https://piece-jointe-carto.developpement-durable.gouv.fr/DEPT095A/CARTOGRAPHIE/CARTE_STATIQUE/2026/26_07_4873/idf_TR/prim_proxy.php" \
+            --output public/live.json \
+          || curl --fail --silent --show-error --max-time 30 \
+            "https://ddt95.github.io/bus-trains-95/live.json" \
+            --output public/live.json
+          node -e "JSON.parse(require('fs').readFileSync('public/live.json','utf8'))"
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
