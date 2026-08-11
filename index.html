@@ -188,6 +188,13 @@ body.present-mode #present-btn{background:var(--blue);color:#fff;border-color:va
   font-size:13px;margin-bottom:6px}
 .veh-pop .dest{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px}
 .veh-pop .meta{font-size:11px;color:var(--muted);line-height:1.6}
+#vehicle-panel{position:fixed;z-index:1900;right:16px;top:127px;bottom:16px;width:min(430px,calc(100vw - 32px));display:flex;flex-direction:column;background:#fff;border:1px solid var(--line);border-radius:24px;box-shadow:0 20px 55px #00132b38;transform:translateX(calc(100% + 34px));opacity:0;pointer-events:none;transition:transform .24s ease,opacity .2s ease;overflow:hidden}
+#vehicle-panel.open{transform:none;opacity:1;pointer-events:auto}
+.vehicle-head{position:relative;padding:24px 72px 21px 26px;background:#f5f7fb;border-top:6px solid var(--vehicle-color,var(--blue));border-bottom:1px solid var(--line)}
+.vehicle-head .eyebrow{display:block;color:var(--blue);font-size:11px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}.vehicle-head h2{margin:11px 0 5px;font-size:29px;line-height:1}.vehicle-head p{margin:0;color:var(--muted);font-size:13px;font-weight:650;line-height:1.45}
+#vehicle-close{position:absolute;right:18px;top:17px;width:42px;height:42px;border:0;border-radius:50%;background:#fff;color:var(--ink);font-size:27px;cursor:pointer}
+.vehicle-body{padding:18px;overflow:auto}.vehicle-card{padding:17px 18px;border:1px solid var(--line);border-radius:17px;margin-bottom:12px}.vehicle-card h3{margin:0 0 13px;color:var(--navy);font-size:15px}.vehicle-line{display:flex;align-items:center;gap:12px}.vehicle-badge{min-width:52px;height:42px;padding:0 12px;border-radius:10px;display:grid;place-items:center;color:#fff;font-size:20px;font-weight:800}.vehicle-line strong{display:block;font-size:15px}.vehicle-line small{display:block;margin-top:3px;color:var(--muted)}.vehicle-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.vehicle-fact{padding:12px;border-radius:12px;background:#f7f8fb}.vehicle-fact span{display:block;color:var(--muted);font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.06em}.vehicle-fact b{display:block;margin-top:5px;font-size:13px;line-height:1.35}.vehicle-note{color:var(--muted);font-size:11px;line-height:1.5}
+@media(max-width:700px){#vehicle-panel{left:8px;right:8px;top:auto;bottom:8px;width:auto;max-height:72vh;border-radius:22px;transform:translateY(calc(100% + 20px))}#vehicle-panel.open{transform:none}}
 
 #sidebar-toggle{display:none}
 #sheet-handle{display:none}
@@ -331,6 +338,15 @@ body.realtime-mode #topbar .sub{color:var(--green);font-weight:700}
       <iframe id="realtime-frame" title="Circulation des trains en temps réel" loading="lazy"></iframe>
     </div>
   </div>
+  <aside id="vehicle-panel" aria-hidden="true" aria-label="Informations sur le véhicule">
+    <header class="vehicle-head">
+      <button id="vehicle-close" type="button" aria-label="Fermer">×</button>
+      <span class="eyebrow" id="vehicle-kind">VÉHICULE</span>
+      <h2 id="vehicle-title">Circulation sélectionnée</h2>
+      <p id="vehicle-subtitle"></p>
+    </header>
+    <div class="vehicle-body" id="vehicle-body"></div>
+  </aside>
 </div>
 
 <dialog id="comprendreDialog" class="dialog">
@@ -610,7 +626,7 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
           color:'#fff', weight:1.2, fillColor:trip.color, fillOpacity:0.95, renderer:canvasRenderer
         });
         mk.bindTooltip(trip.r.short, {permanent:true, direction:'right', offset:[7,0], className:'veh-label '+trip.mode});
-        mk.on('click', ()=>showPopup(mk, trip));
+        mk.on('click', ()=>openTheoreticalVehicle(trip));
         mk.addTo(map);
         markers.set(trip.id, mk);
       } else {
@@ -625,18 +641,35 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
       `${statCounts.bus||0} bus · ${statCounts.train||0} trains/RER · ${(statCounts.tram||0)+(statCounts.metro||0)} tram/métro`;
   }
 
-  function showPopup(marker, trip){
-    const html = `<div class="veh-pop">
-      <div class="line-badge" style="background:${trip.color}">${escapeHtml(trip.r.short)}</div>
-      <div class="dest">→ ${escapeHtml(trip.hs || 'Destination inconnue')}</div>
-      <div class="meta">
-        ${MODE_LABEL[trip.mode]}${trip.r.agency ? ' · '+escapeHtml(trip.r.agency) : ''}<br>
-        ${trip.sn ? 'N° '+escapeHtml(trip.sn)+'<br>' : ''}
-        Départ ${fmtClock(trip.t0)} · Arrivée ${fmtClock(trip.t1)}
-      </div>
-    </div>`;
-    marker.bindPopup(html).openPopup();
+  function openTheoreticalVehicle(trip){
+    openVehiclePanel({
+      kind:MODE_LABEL[trip.mode], line:trip.r.short, color:trip.color,
+      destination:trip.hs||'Destination non renseignée', agency:trip.r.agency||'Île-de-France Mobilités',
+      service:trip.sn||trip.id, departure:fmtClock(trip.t0), arrival:fmtClock(trip.t1),
+      status:'Horaire théorique', freshness:`${DAY_NAMES[dayIndex]} · heure simulée ${fmtClock(simTime)}`
+    });
   }
+  function openVehiclePanel(info){
+    const panel=$('#vehicle-panel');
+    panel.style.setProperty('--vehicle-color',info.color||'#000091');
+    $('#vehicle-kind').textContent=(info.kind||'Véhicule').toUpperCase();
+    $('#vehicle-title').textContent='Ligne '+(info.line||'—');
+    $('#vehicle-subtitle').textContent='Vers '+(info.destination||'Destination non renseignée');
+    $('#vehicle-body').innerHTML=`
+      <section class="vehicle-card"><h3>Circulation</h3><div class="vehicle-line"><span class="vehicle-badge" style="background:${info.color||'#000091'}">${escapeHtml(info.line||'—')}</span><div><strong>${escapeHtml(info.kind||'Transport collectif')}</strong><small>${escapeHtml(info.agency||'Île-de-France Mobilités')}</small></div></div></section>
+      <section class="vehicle-card"><h3>Trajet et horaires</h3><div class="vehicle-grid">
+        <div class="vehicle-fact"><span>Destination</span><b>${escapeHtml(info.destination||'—')}</b></div>
+        <div class="vehicle-fact"><span>Prochain arrêt</span><b>${escapeHtml(info.nextStop||'Non renseigné')}</b></div>
+        <div class="vehicle-fact"><span>Départ</span><b>${escapeHtml(info.departure||'—')}</b></div>
+        <div class="vehicle-fact"><span>Arrivée</span><b>${escapeHtml(info.arrival||'—')}</b></div>
+      </div></section>
+      <section class="vehicle-card"><h3>Données de service</h3><div class="vehicle-grid">
+        <div class="vehicle-fact"><span>Course / véhicule</span><b>${escapeHtml(info.service||'Non renseigné')}</b></div>
+        <div class="vehicle-fact"><span>État</span><b>${escapeHtml(info.status||'—')}</b></div>
+      </div><p class="vehicle-note">${escapeHtml(info.freshness||'Source : Île-de-France Mobilités')}</p></section>`;
+    panel.classList.add('open');panel.setAttribute('aria-hidden','false');
+  }
+  function closeVehiclePanel(){const panel=$('#vehicle-panel');panel.classList.remove('open');panel.setAttribute('aria-hidden','true')}
   function escapeHtml(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
   function syncTimeUI(){
@@ -657,6 +690,11 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
       clearTimeout(realtimeLoaderTimer);
       realtimeLoaderTimer = setTimeout(()=>$('#realtime-loader').hidden=true, 2600);
       syncRealtimeFilters();
+    });
+    $('#vehicle-close').addEventListener('click',closeVehiclePanel);
+    window.addEventListener('message',event=>{
+      if(event.origin!==location.origin||event.data?.type!=='transport95:vehicle') return;
+      openVehiclePanel(event.data.vehicle||{});
     });
     $('#play-btn').addEventListener('click', togglePlay);
     $('#time-slider').addEventListener('input', e=>{ simTime=+e.target.value; syncTimeUI(); });
@@ -693,6 +731,7 @@ document.getElementById('logo-img').src = "data:image/jpeg;base64,"+LOGO_B64;
   }
   function setDataView(view){
     const realtime = view === 'realtime';
+    closeVehiclePanel();
     dataView = view;
     if(realtime){
       selectedRoutes = new Set(DATA.routes.map((route,idx)=>route.mode === 'train' ? idx : null).filter(idx=>idx!==null));
